@@ -1,1 +1,1 @@
-export default {experimental:{serverActions:{bodySizeLimit:'12mb'}},serverExternalPackages:['pdfkit','exceljs']};
+export default {experimental:{serverActions:{bodySizeLimit:process.env.VERCEL?'4mb':'12mb'}},outputFileTracingIncludes:{'/*':['./lib/schema.sql']},serverExternalPackages:['pdfkit','exceljs']};

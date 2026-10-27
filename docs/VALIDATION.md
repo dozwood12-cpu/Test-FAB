@@ -17,3 +17,7 @@ Keterbatasan: email diverifikasi dengan Mailpit lokal, bukan inbox anggota. Tida
 ## Persiapan deployment dari GitHub
 
 Dockerfile.render berhasil dibangun. Entry point gabungan diuji pada PostgreSQL dan volume disk baru: login FAB berhasil, web/worker berjalan sebagai uid 1000, worker membuat limit mingguan, dan penghentian worker menyebabkan supervisor menghentikan web untuk restart. Startup ulang berhasil dengan akun yang sama. YAML blueprint berhasil diparse lokal; pembuatan layanan, biaya, health check publik, serta URL aktual Render belum diuji/diaktifkan karena akun hosting belum terhubung.
+
+## Adaptasi Vercel dan Supabase
+
+Sembilan unit test lulus, termasuk API Storage tiruan, signed URL, batas Vercel, dan secret setup. Delapan integration test lulus pada PostgreSQL lokal, termasuk RLS yang menolak pembacaan oleh role lain, lifecycle upload cloud tiruan, pembersihan arsip, dan SMTP Mailpit. Enam pengujian browser desktop/mobile lulus, termasuk endpoint setup/cron tanpa otorisasi, setup ulang yang menjaga password, serta pengajuan sampai pencairan dan ekspor. Build dengan VERCEL=1 berhasil dan SQL schema ditemukan dalam manifest tracing setup. Supabase/Vercel milik pengguna belum dikoneksikan; uji API tiruan bukan verifikasi layanan nyata.

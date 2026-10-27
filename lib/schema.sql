@@ -148,3 +148,30 @@ DROP TRIGGER IF EXISTS request_events_immutable ON request_events;
 CREATE TRIGGER request_events_immutable BEFORE UPDATE OR DELETE OR TRUNCATE ON request_events FOR EACH STATEMENT EXECUTE FUNCTION prevent_audit_changes();
 DROP TRIGGER IF EXISTS cash_entries_immutable ON cash_entries;
 CREATE TRIGGER cash_entries_immutable BEFORE UPDATE OR DELETE OR TRUNCATE ON cash_entries FOR EACH STATEMENT EXECUTE FUNCTION prevent_audit_changes();
+CREATE TABLE IF NOT EXISTS export_archives(
+ storage_key text PRIMARY KEY CHECK(storage_key ~ '^[a-f0-9]{48}$'),
+ user_id bigint NOT NULL REFERENCES users(id),
+ expires_at timestamptz NOT NULL DEFAULT now()+interval '1 day',
+ created_at timestamptz NOT NULL DEFAULT now()
+);
+-- The app uses its private server database connection, not anonymous PostgREST.
+-- RLS and revoked grants prevent public Supabase keys reading app/password data.
+DO $$
+DECLARE tab text; role_name text; seq_name text;
+BEGIN
+ FOREACH tab IN ARRAY ARRAY['users','sessions','login_attempts','audit_events','policy','policy_history','approval_policies','rab_items','inventory','requests','request_items','documents','request_events','reviews','weekly_budgets','budget_weeks','budget_reservations','reallocations','cash_entries','disbursements','receipt_handoffs','lost_receipts','appeals','returns','sanctions','notifications','reconciliations','handover_notes','export_archives'] LOOP
+  EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY',tab);
+  FOREACH role_name IN ARRAY ARRAY['anon','authenticated'] LOOP
+   IF EXISTS(SELECT 1 FROM pg_roles WHERE rolname=role_name) THEN
+    EXECUTE format('REVOKE ALL PRIVILEGES ON TABLE public.%I FROM %I',tab,role_name);
+   END IF;
+  END LOOP;
+ END LOOP;
+ FOR seq_name IN SELECT sequence_name FROM information_schema.sequences WHERE sequence_schema='public' LOOP
+  IF seq_name='request_numbers' OR seq_name=ANY(ARRAY['users_id_seq','audit_events_id_seq','policy_history_id_seq','approval_policies_id_seq','rab_items_id_seq','inventory_id_seq','requests_id_seq','request_items_id_seq','documents_id_seq','request_events_id_seq','reviews_id_seq','reallocations_id_seq','cash_entries_id_seq','disbursements_id_seq','receipt_handoffs_id_seq','lost_receipts_id_seq','appeals_id_seq','returns_id_seq','sanctions_id_seq','notifications_id_seq','reconciliations_id_seq','handover_notes_id_seq']) THEN
+   FOREACH role_name IN ARRAY ARRAY['anon','authenticated'] LOOP
+    IF EXISTS(SELECT 1 FROM pg_roles WHERE rolname=role_name) THEN EXECUTE format('REVOKE ALL PRIVILEGES ON SEQUENCE public.%I FROM %I',seq_name,role_name); END IF;
+   END LOOP;
+  END IF;
+ END LOOP;
+END $$;

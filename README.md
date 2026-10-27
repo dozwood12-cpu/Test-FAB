@@ -2,6 +2,8 @@
 
 Aplikasi web pengadaan dan reimbursement berbahasa Indonesia dengan Next.js 16, React 19 dan PostgreSQL 17. Responsif untuk desktop/mobile. Login menggunakan akun database yang ditambahkan Admin, sesuai keputusan tim.
 
+**Untuk mencoba online dengan paket gratis:** ikuti [panduan Vercel + Supabase](docs/VERCEL-SUPABASE.md). Tidak perlu ZIP atau blueprint Render.
+
 ## Fitur
 
 - Dashboard per peran, pengelolaan anggota, deaktivasi, reset kata sandi dan penetapan wakil GM.
@@ -77,3 +79,7 @@ Paket `Dockerfile`, `compose.yaml` dan Caddyfile menyediakan web, worker, Postgr
 ## Online tanpa ZIP
 
 Kode dapat dibangun langsung dari GitHub menggunakan blueprint Render (`render.yaml`). Ikuti [docs/RENDER.md](docs/RENDER.md). Akun hosting dan persetujuan biaya tetap diperlukan; menambahkan blueprint tidak menerbitkan URL publik.
+
+## Vercel + Supabase untuk demo gratis
+
+Ikuti [docs/VERCEL-SUPABASE.md](docs/VERCEL-SUPABASE.md). Storage privat Supabase menggantikan disk lokal, halaman `/setup` menyiapkan schema/akun awal dengan secret, dan penjadwal best-effort menggantikan worker tetap. Batas unggah Vercel 3 MB; dokumen/laporan menggunakan signed URL. Tidak menjamin SLA urgent pada paket gratis.

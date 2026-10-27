@@ -1,3 +1,4 @@
+export const maxDuration=60;
 import {login} from '../actions';
 export default async function Login({searchParams}) {
  const q=await searchParams;

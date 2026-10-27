@@ -1,3 +1,4 @@
+export const maxDuration=60;
 import {redirect} from 'next/navigation';
 import {requireUser} from '../../lib/auth.mjs';
 import pool from '../../lib/db.mjs';
