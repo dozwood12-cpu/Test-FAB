@@ -1,0 +1,22 @@
+FROM node:24-bookworm-slim AS build
+WORKDIR /app
+ENV NEXT_TELEMETRY_DISABLED=1
+COPY package.json package-lock.json ./
+RUN --mount=type=secret,id=build_ca \
+    if [ -f /run/secrets/build_ca ]; then npm ci --no-audit --no-fund --cafile=/run/secrets/build_ca --fetch-retries=1 --fetch-timeout=60000; else npm ci --no-audit --no-fund --fetch-retries=1 --fetch-timeout=60000; fi
+COPY . .
+RUN npm run build
+
+FROM node:24-bookworm-slim AS runtime
+WORKDIR /app
+ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 TZ=UTC
+COPY --from=build --chown=node:node /app/package.json /app/package-lock.json ./
+COPY --from=build --chown=node:node /app/node_modules ./node_modules
+COPY --from=build --chown=node:node /app/.next ./.next
+COPY --from=build --chown=node:node /app/next.config.mjs ./
+COPY --from=build --chown=node:node /app/lib ./lib
+COPY --from=build --chown=node:node /app/scripts ./scripts
+RUN mkdir -p /app/data/uploads && chown -R node:node /app/data
+USER node
+EXPOSE 3000
+CMD ["sh","-c","node scripts/setup.mjs && npm start"]

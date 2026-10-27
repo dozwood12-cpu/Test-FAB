@@ -1,0 +1,12 @@
+node_modules/
+.next/
+.env*
+!.env.example
+playwright-report/
+test-results/
+data/uploads/*
+!data/uploads/.gitkeep
+*.log
+backups/
+!.env.compose.example
+data/*.dump
