@@ -6,15 +6,16 @@ const key='a'.repeat(48);
 test('Supabase adapter sends private uploads and returns authorized signed URLs',async()=>{
  const original={...process.env},fetch=globalThis.fetch;const calls=[];
  Object.assign(process.env,{STORAGE_DRIVER:'supabase',SUPABASE_URL:'https://project.example.test',SUPABASE_SERVICE_ROLE_KEY:'fake-test-key-not-real',SUPABASE_STORAGE_BUCKET:'fab-documents'});
- globalThis.fetch=async(url,opts)=>{calls.push({url,opts});if(url.includes('/object/sign/'))return Response.json({signedURL:`/object/sign/fab-documents/${key}?token=test`});if(opts.method==='GET')return new Response('nota-test');return Response.json({Key:key});};
+ globalThis.fetch=async(url,opts)=>{calls.push({url,opts});if(url.includes('/bucket/'))return Response.json({public:false});if(url.includes('/object/sign/'))return Response.json({signedURL:`/object/sign/fab-documents/${key}?token=test`});if(opts.method==='GET')return new Response('nota-test');return Response.json({Key:key});};
  try{
-  await storeDocument(key,Buffer.from('nota-test'),'image/png');assert.equal(calls[0].opts.headers['x-upsert'],'false');assert.equal(calls[0].opts.headers.apikey,'fake-test-key-not-real');assert.equal(calls[0].opts.redirect,'error');
+  await storeDocument(key,Buffer.from('nota-test'),'image/png');const uploaded=calls.find(c=>c.opts.method==='POST');assert.equal(uploaded.opts.headers['x-upsert'],'false');assert.equal(uploaded.opts.headers.apikey,'fake-test-key-not-real');assert.equal(uploaded.opts.redirect,'error');
   assert.equal((await readDocument({storage_key:key})).toString(),'nota-test');
   const chunks=[];for await(const c of await streamDocument({storage_key:key}))chunks.push(c);assert.equal(Buffer.concat(chunks).toString(),'nota-test');
   const signed=await signedDocumentUrl({storage_key:key});assert.ok(signed.startsWith('https://project.example.test/storage/v1/object/sign/'));assert.ok(!signed.includes('fake-test-key'));
   await removeDocument(key);assert.deepEqual(JSON.parse(calls.at(-1).opts.body),{prefixes:[key]});
   await assert.rejects(()=>readDocument({storage_key:'../escape'}),/Storage key/);
   globalThis.fetch=async()=>Response.json({signedURL:'https://evil.example/object/sign/'});await assert.rejects(()=>signedDocumentUrl({storage_key:key}),/tidak valid/);
+  process.env.SUPABASE_STORAGE_BUCKET='public-bucket-test';globalThis.fetch=async()=>Response.json({public:true});await assert.rejects(()=>storeDocument(key,Buffer.from('private'),'image/png'),/harus privat/);
  }finally{globalThis.fetch=fetch;for(const name of Object.keys(process.env))if(!(name in original))delete process.env[name];Object.assign(process.env,original);}
 });
 test('Vercel never silently writes receipts to a temporary local disk',async()=>{

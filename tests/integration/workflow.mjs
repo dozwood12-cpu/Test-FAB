@@ -126,6 +126,7 @@ test('cloud receipt lifecycle and private export cleanup work without filesystem
  Object.assign(process.env,{STORAGE_DRIVER:'supabase',SUPABASE_URL:'https://project.example.test',SUPABASE_SERVICE_ROLE_KEY:'fake-test-key-not-real',SMTP_HOST:''});
  globalThis.fetch=async(url,opts)=>{
   const pathname=new URL(url).pathname;
+  if(pathname.includes('/bucket/'))return Response.json({public:false});
   if(pathname.includes('/object/sign/'))return Response.json({signedURL:'/object/sign/fab-documents/'+pathname.split('/').at(-1)+'?token=test'});
   if(opts.method==='POST'){objects.set(pathname.split('/').at(-1),Buffer.from(opts.body));return Response.json({status:'ok'});}
   if(opts.method==='DELETE'){for(const key of JSON.parse(opts.body).prefixes)objects.delete(key);return Response.json({status:'ok'});}
