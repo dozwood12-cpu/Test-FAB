@@ -57,7 +57,7 @@ Jika mendapat kegagalan verifikasi sertifikat PostgreSQL, ambil CA resmi project
 1. Pastikan default branch GitHub **main**.
 2. Buka GitHub **Settings → Secrets and variables → Actions**.
 3. Tambahkan `FAB_APP_URL` berisi URL HTTPS Production Vercel (tanpa `/login`) dan `FAB_CRON_SECRET` yang nilainya sama persis dengan CRON_SECRET di Vercel.
-4. Buka **Actions → Pengingat Anargya FAB → Run workflow** untuk mencoba. Setelah itu jadwal meminta eksekusi sekitar setiap 30 menit. Jika deployment protection memblokirnya, pastikan URL Production dapat diakses anggota dan penjadwal tanpa login dashboard Vercel. Endpoint cron tetap memerlukan secret.
+4. Buka **Actions → Pengingat Anargya FAB → Run workflow** untuk mencoba. Jika pengujian berhasil, buka tab **Variables** pada pengaturan Actions dan buat repository variable `FAB_REMINDERS_ENABLED` bernilai `true`. Setelah diaktifkan, jadwal meminta eksekusi sekitar setiap 30 menit. Sebelum variable ini diaktifkan, job terjadwal dilewati agar tidak menghabiskan kuota Actions. Jika deployment protection memblokirnya, pastikan URL Production dapat diakses anggota dan penjadwal tanpa login dashboard Vercel. Endpoint cron tetap memerlukan secret.
 5. Admin juga dapat menjalankan antrean dari **Kebijakan → Jalankan pengingat sekarang**.
 
 GitHub Actions/Vercel cron gratis bersifat best-effort: eksekusi bisa terlambat, berhenti karena kuota/inaktivitas, atau dibatasi penyedia. Ini **tidak menjamin SLA urgent 2–4 jam**. Gunakan scheduler/worker yang memiliki jaminan operasional sebelum memakai alur urgent untuk transaksi nyata.

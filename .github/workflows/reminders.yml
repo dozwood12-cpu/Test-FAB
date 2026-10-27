@@ -9,6 +9,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   reminders:
+    if: ${{ github.event_name == 'workflow_dispatch' || vars.FAB_REMINDERS_ENABLED == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
