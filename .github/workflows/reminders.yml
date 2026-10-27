@@ -1,0 +1,39 @@
+name: Pengingat Anargya FAB
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '7,37 * * * *'
+permissions: {}
+concurrency:
+  group: fab-reminders
+  cancel-in-progress: false
+jobs:
+  reminders:
+    if: ${{ github.event_name == 'workflow_dispatch' || vars.FAB_REMINDERS_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Jalankan pengingat melalui endpoint privat
+        env:
+          APP_URL: ${{ secrets.FAB_APP_URL }}
+          CRON_SECRET: ${{ secrets.FAB_CRON_SECRET }}
+        run: |
+          python3 - <<'PY'
+          import os, urllib.request, urllib.parse
+          url=os.environ.get('APP_URL','').rstrip('/')
+          secret=os.environ.get('CRON_SECRET','')
+          if not url or len(secret)<32:
+              raise SystemExit('Pengingat belum dikonfigurasi; isi FAB_APP_URL dan FAB_CRON_SECRET di Actions secrets.')
+          parsed=urllib.parse.urlsplit(url)
+          if parsed.scheme!='https' or parsed.query or parsed.fragment or parsed.username or parsed.password:
+              raise SystemExit('FAB_APP_URL harus berupa URL HTTPS tanpa kredensial atau query.')
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self,*args,**kwargs): return None
+          request=urllib.request.Request(url+'/api/cron',method='POST',headers={'Authorization':'Bearer '+secret})
+          try:
+              response=urllib.request.build_opener(NoRedirect()).open(request,timeout=90)
+              if response.status!=200: raise RuntimeError()
+              print('Pengingat berhasil dijalankan.')
+          except Exception:
+              raise SystemExit('Pengingat gagal. Periksa URL, deployment protection, dan CRON_SECRET di Vercel.')
+          PY

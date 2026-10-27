@@ -1,9 +1,12 @@
+import {storageDriver} from '../../../lib/storage.mjs';
+import {publishExport} from '../../../lib/export-file.mjs';
 import {currentUser} from '../../../lib/auth.mjs';
 import pool from '../../../lib/db.mjs';
 import {transaction,audit} from '../../../lib/workflow.mjs';
 import {money} from '../../../lib/rules.mjs';
 import ExcelJS from 'exceljs';
 import PDFDocument from 'pdfkit';
+export const maxDuration=60;
 export async function GET(request){
  const user=await currentUser();if(!user||!['FA','GM','ADMIN'].includes(user.role))return new Response('Tidak diizinkan',{status:403});
  const url=new URL(request.url),month=url.searchParams.get('month'),format=url.searchParams.get('format');
@@ -34,5 +37,6 @@ export async function GET(request){
   section('Rekonsiliasi rekening',recon.map(r=>`Rekening ${money(r.statement_balance)} | Buku ${money(r.ledger_balance)} | Selisih ${money(r.difference)}\n${r.note}`));
   doc.end();await done;body=Buffer.concat(chunks);mime='application/pdf';
  }
+ if(storageDriver()==='supabase')return publishExport(user,body,mime,`FAB-${month}.${format}`);
  return new Response(body,{headers:{'Content-Type':mime,'Content-Disposition':`attachment; filename="FAB-${month}.${format}"`,'Cache-Control':'private, no-store'}});
 }

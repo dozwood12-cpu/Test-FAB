@@ -111,3 +111,36 @@ test('unspent advance is settled only after the remainder returns to team cash',
  const ret=(await pool.query('SELECT id FROM returns WHERE request_id=$1',[r.id])).rows[0];await operateRequest(people.fa,r.id,'refund_confirm',{return_id:ret.id,note:'Sisa advance diterima kas'});
  await operateRequest(people.fa,r.id,'settle_verify',{note:'Nota dan sisa kas cocok'});await operateRequest(people.gm,r.id,'settle_approve',{note:'Seluruh advance dipertanggungjawabkan'});assert.ok((await getRequest(people.member,r.id)).settled_at);
 });
+test('public API roles cannot bypass row-level security on application records',async()=>{
+ const role='fab_anon_'+Date.now();
+ await pool.query(`CREATE ROLE ${role} NOLOGIN`);
+ try{
+  await pool.query(`GRANT USAGE ON SCHEMA public TO ${role}`);await pool.query(`GRANT SELECT ON users, requests TO ${role}`);
+  await transaction(async c=>{await c.query(`SET LOCAL ROLE ${role}`);assert.equal(Number((await c.query('SELECT count(*) AS n FROM users')).rows[0].n),0);assert.equal(Number((await c.query('SELECT count(*) AS n FROM requests')).rows[0].n),0);});
+  const flag=(await pool.query("SELECT relrowsecurity FROM pg_class WHERE oid='public.users'::regclass")).rows[0];assert.equal(flag.relrowsecurity,true);
+ }finally{await pool.query(`DROP OWNED BY ${role}`);await pool.query(`DROP ROLE ${role}`);}
+});
+test('cloud receipt lifecycle and private export cleanup work without filesystem storage',async()=>{
+ const originalFetch=globalThis.fetch,names=['STORAGE_DRIVER','SUPABASE_URL','SUPABASE_SERVICE_ROLE_KEY','SMTP_HOST'];const saved=Object.fromEntries(names.map(k=>[k,process.env[k]]));const objects=new Map();let stored,body;
+ const storage=await import('../../lib/storage.mjs');const {publishExport}=await import('../../lib/export-file.mjs');
+ Object.assign(process.env,{STORAGE_DRIVER:'supabase',SUPABASE_URL:'https://project.example.test',SUPABASE_SERVICE_ROLE_KEY:'fake-test-key-not-real',SMTP_HOST:''});
+ globalThis.fetch=async(url,opts)=>{
+  const pathname=new URL(url).pathname;
+  if(pathname.includes('/bucket/'))return Response.json({public:false});
+  if(pathname.includes('/object/sign/'))return Response.json({signedURL:'/object/sign/fab-documents/'+pathname.split('/').at(-1)+'?token=test'});
+  if(opts.method==='POST'){objects.set(pathname.split('/').at(-1),Buffer.from(opts.body));return Response.json({status:'ok'});}
+  if(opts.method==='DELETE'){for(const key of JSON.parse(opts.body).prefixes)objects.delete(key);return Response.json({status:'ok'});}
+  const value=objects.get(pathname.split('/').at(-1));return value?new Response(value):new Response('missing',{status:404});
+ };
+ try{
+  const r=await createRequest(people.member,data());const f=await fileForm('NOTA');const upload=await uploadDocument(people.member,r.id,f);
+  stored=(await pool.query('SELECT * FROM documents WHERE id=$1',[upload.id])).rows[0];body=objects.get(stored.storage_key);assert.ok(body);assert.deepEqual(await storage.readDocument(stored),body);
+  await assert.rejects(()=>uploadDocument(people.member,r.id,f),/identik/);assert.equal(objects.size,1);
+  const result=await publishExport(people.gm,Buffer.from('PK-test-archive'),'application/zip','demo.zip');assert.equal(result.status,302);assert.equal(new URL(result.headers.get('location')).searchParams.get('download'),'demo.zip');assert.equal(objects.size,2);
+  await pool.query("UPDATE export_archives SET expires_at=now()-interval '1 hour'");await tick();assert.equal(objects.size,1);assert.equal(Number((await pool.query('SELECT count(*) AS n FROM export_archives')).rows[0].n),0);
+ }finally{
+  globalThis.fetch=originalFetch;for(const key of names){if(saved[key]===undefined)delete process.env[key];else process.env[key]=saved[key];}
+  // Preserve a local copy for subsequent local browser export checks in this disposable DB.
+  if(stored&&body)await storage.storeDocument(stored.storage_key,body,stored.mime);
+ }
+});
