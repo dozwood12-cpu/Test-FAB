@@ -77,3 +77,11 @@ Vercel memiliki batas request/response serverless. Karena itu:
 ## Status yang sudah dan belum diverifikasi
 
 Adaptor Storage diuji dengan respons API tiruan dan database lokal; schema/RLS serta alur aplikasi diuji pada PostgreSQL lokal. Pengujian ini tidak membuktikan bucket, API key, pooler, email atau URL project Supabase/Vercel Anda sudah berfungsi. Validasi layanan nyata dilakukan setelah Anda membuat project dan mengisi variabel secara aman.
+
+### Pemeriksaan database dan percobaan dari browser
+
+Login sebagai Admin lalu buka `/admin/database` (tautan juga tersedia di Beranda dan Menu lainnya). Halaman ini membaca jumlah record, relasi pengusul, pemisahan petugas, dan RLS pada database deployment saat ini. Halaman ini tidak memeriksa rekening bank atau keberadaan setiap objek Storage.
+
+Untuk mencoba alur, isi password baru minimal 8 karakter, centang persetujuan, dan klik **Buat data dummy**. Akun `demo.anggota`, `demo.hod`, `demo.fa`, `demo.pencair`, `demo.gm`, dan `demo.wakil` memakai password tersebut saat pertama dibuat. Pengulangan mempertahankan akun/password dan pengajuan yang sudah ada. Untuk reset gunakan menu Anggota & akses.
+
+Data `[CONTOH]` meliputi RAB tiga divisi, satu inventaris, tiga pengajuan, dan satu nota PDF. Reimbursement sudah diverifikasi sehingga GM dapat mencoba persetujuan; dua advance menunggu FA. Tidak ada kas masuk, persetujuan GM, atau pencairan yang dibuat otomatis. Data contoh berada di database yang sama dan masuk laporan; gunakan project percobaan bila perlu isolasi penuh. Nonaktifkan akun demo setelah percobaan. Log audit dipertahankan.

@@ -81,3 +81,11 @@ export async function completeOnboarding(form){if(!form.get('confirm'))throw new
 export async function readNotifications(){await perform('/notifications',async u=>{await pool.query('UPDATE notifications SET read_at=now() WHERE user_id=$1 AND read_at IS NULL',[u.id]);});}
 export async function changePassword(form){await perform('/account',async u=>{const old=String(form.get('old')||''),password=String(form.get('password')||'');if(password.length<8||password.length>128)throw new Error('Kata sandi baru harus 8–128 karakter.');await transaction(async c=>{const record=(await c.query('SELECT password_hash FROM users WHERE id=$1 FOR UPDATE',[u.id])).rows[0];if(!verifyPassword(old,record.password_hash))throw new Error('Kata sandi lama salah.');await c.query('UPDATE users SET password_hash=$2 WHERE id=$1',[u.id,hashPassword(password)]);await c.query('DELETE FROM sessions WHERE user_id=$1',[u.id]);await audit(c,u,'PASSWORD_CHANGED',u.id);});return '/login';});}
 export async function runReminders(){await perform('/settings',async u=>{if(u.role!=='ADMIN')throw new Error('Hanya Admin dapat menjalankan pengingat.');const {tick}=await import('../scripts/worker.mjs');await tick();});}
+
+export async function createDemo(form){await perform('/admin/database',async user=>{
+ if(user.role!=='ADMIN')throw new Error('Hanya Admin dapat membuat data contoh.');
+ if(form.get('acknowledge')!=='on')throw new Error('Centang persetujuan penambahan data contoh.');
+ const {seedDemo}=await import('../lib/demo.mjs');
+ await seedDemo(String(form.get('password')||''));
+ await transaction(c=>audit(c,user,'DEMO_DATA_CREATED',null,{prefix:'[CONTOH]'}));
+});}

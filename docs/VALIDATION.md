@@ -21,3 +21,5 @@ Dockerfile.render berhasil dibangun. Entry point gabungan diuji pada PostgreSQL 
 ## Adaptasi Vercel dan Supabase
 
 Sembilan unit test lulus, termasuk API Storage tiruan, signed URL, batas Vercel, dan secret setup. Delapan integration test lulus pada PostgreSQL lokal, termasuk RLS yang menolak pembacaan oleh role lain, lifecycle upload cloud tiruan, pembersihan arsip, dan SMTP Mailpit. Enam pengujian browser desktop/mobile lulus, termasuk endpoint setup/cron tanpa otorisasi, setup ulang yang menjaga password, serta pengajuan sampai pencairan dan ekspor. Build dengan VERCEL=1 berhasil dan SQL schema ditemukan dalam manifest tracing setup. Supabase/Vercel milik pengguna belum dikoneksikan; uji API tiruan bukan verifikasi layanan nyata.
+
+Penyederhanaan navigasi: menu pendukung dikelompokkan di Menu lainnya; Beranda dan Pengajuan menampilkan petunjuk per peran, kolom langkah berikutnya dan tautan Buka detail. Halaman Admin `/admin/database` menyediakan pemeriksaan read-only dan penambahan dummy eksplisit. Uji browser tambahan memeriksa akses Admin, penambahan dummy berulang tanpa duplikasi atau kas, login demo dan penolakan akses anggota.
