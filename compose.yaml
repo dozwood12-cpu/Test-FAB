@@ -1,0 +1,73 @@
+services:
+  db:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: fab
+      POSTGRES_DB: fab
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+    volumes:
+      - postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U fab -d fab]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+  web:
+    build: .
+    image: anargya-fab:local
+    restart: unless-stopped
+    environment: &app-env
+      DATABASE_URL: postgresql://fab:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@db:5432/fab
+      ADMIN_INITIAL_PASSWORD: ${ADMIN_INITIAL_PASSWORD:?Set ADMIN_INITIAL_PASSWORD}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      APP_URL: ${APP_URL:-}
+      UPLOAD_DIR: /app/data/uploads
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-FAB <fab@example.test>}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_REQUIRE_TLS: ${SMTP_REQUIRE_TLS:-true}
+    ports:
+      - 127.0.0.1:${APP_PORT:-3000}:3000
+    volumes:
+      - uploads:/app/data/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+  worker:
+    image: anargya-fab:local
+    restart: unless-stopped
+    environment: *app-env
+    command: [node, scripts/worker.mjs]
+    volumes:
+      - uploads:/app/data/uploads
+    depends_on:
+      web:
+        condition: service_healthy
+  caddy:
+    image: caddy:2
+    profiles: [https]
+    restart: unless-stopped
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:-}
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      web:
+        condition: service_healthy
+volumes:
+  postgres:
+  uploads:
+  caddy_data:
+  caddy_config:
