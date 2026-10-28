@@ -1,0 +1,6 @@
+import Link from 'next/link';
+import {requireUser} from '../../lib/auth.mjs';
+import {finance} from '../../lib/simple/core.mjs';
+import pool from '../../lib/db.mjs';
+import Shell,{Status,money} from '../ui';
+export default async function History({searchParams}){const user=await requireUser(),q=await searchParams;const page=Math.max(1,Number.parseInt(q.page)||1);const rows=(await pool.query('SELECT * FROM requests '+(finance(user)?'':'WHERE proposer_id=$1')+' ORDER BY id DESC LIMIT 50 OFFSET $'+(finance(user)?1:2),finance(user)?[(page-1)*50]:[user.id,(page-1)*50])).rows;return <Shell user={user} active="/requests" title="Arsip versi lama" subtitle="Read-only. Data ini tidak diposting ulang ke jurnal versi baru."><Link href="/requests">← Pengajuan baru</Link>{rows.map(r=><article className="card request-card" key={r.id}><div><Link href={'/history/'+r.id}>{r.number} · {r.title}</Link><small>{r.division}</small></div><div><b>{money(r.amount)}</b><Status value={r.status}/></div></article>)}{!rows.length&&<p>Tidak ada arsip.</p>}<div className="toolbar">{page>1&&<Link href={'/history?page='+(page-1)}>← Sebelumnya</Link>}{rows.length===50&&<Link href={'/history?page='+(page+1)}>Berikutnya →</Link>}</div></Shell>}

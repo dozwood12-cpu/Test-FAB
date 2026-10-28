@@ -1,3 +1,5 @@
+> Dokumen usulan historis. Cakupan implementasi sederhana yang berlaku kini dijelaskan di ARCHITECTURE.md; tidak semua modul usulan di bawah diimplementasikan.
+
 # Rancangan peningkatan FICO, MM, dan AP/AR
 
 Status: rancangan untuk pembahasan, belum diimplementasikan atau dimigrasikan ke Supabase. Spesifikasi ini menggantikan pendekatan penyederhanaan tampilan saja. Keputusan waktu pengakuan jurnal, periode anggaran, nama cost center, dan pemisahan FO masih menunggu jawaban pemilik sistem.

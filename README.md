@@ -1,85 +1,66 @@
-# Anargya Gen 8 — FAB
+# Anargya FAB — versi sederhana
 
-Aplikasi web pengadaan dan reimbursement berbahasa Indonesia dengan Next.js 16, React 19 dan PostgreSQL 17. Responsif untuk desktop/mobile. Login menggunakan akun database yang ditambahkan Admin, sesuai keputusan tim.
+Aplikasi keuangan tim berbahasa Indonesia. Fokus hanya pada **pengajuan → verifikasi FO → persetujuan Lead → pencairan**, dengan anggaran per divisi dan jurnal double-entry otomatis. Dibangun ulang untuk menggantikan alur versi sebelumnya yang terlalu banyak fitur.
 
-**Untuk mencoba online dengan paket gratis:** ikuti [panduan Vercel + Supabase](docs/VERCEL-SUPABASE.md). Tidak perlu ZIP atau blueprint Render.
+## Menu yang tersedia
 
-## Fitur
+- **Pengajuan**: buat + upload nota dalam satu form, lihat status, edit/ganti nota sebelum verifikasi, minta perbaikan, batalkan sebelum verifikasi, verifikasi FO, Approve/Reject oleh Lead, dan pembayaran penuh/sebagian dengan bukti transfer.
+- **Keuangan** (FO/Lead/Admin): saldo kas, cost center/divisi dinamis, anggaran Gen 8, hutang belum lunas, jurnal otomatis, penerimaan dana, CoA, dan laporan Excel.
+- **Anggota** (Admin): tambah/edit anggota, reset password, hapus akses/aktifkan kembali, serta data dummy.
+- **Panduan** dan **Akun saya**.
 
-- Dashboard per peran, pengelolaan anggota, deaktivasi, reset kata sandi dan penetapan wakil GM.
-- Pengajuan multi-item RAB, inventaris, minimum Rp10.000, limit mingguan dan carry-over terbatas, realokasi GM, serta riwayat status.
-- Upload privat, validasi foto/PDF, hash nota ganda, kemiripan gambar, deteksi splitting dan jalur langsung/urgent.
-- FA → GM → pencair FA berbeda. Checklist dan alasan penolakan, perbaikan tiga hari, banding, bukti transfer dan arsip nota fisik.
-- Advance dan pengembalian sisa dana, nota hilang, retur, sanksi bertahap dan onboarding anggota.
-- Notifikasi dalam aplikasi, outbox email, pengingat tenggat dan eskalasi urgent ke wakil GM.
-- Saldo kas, reservasi dana, rekonsiliasi rekening bulanan, pembandingan RAB/pengajuan/pencairan, laporan Excel/PDF, audit append-only, FAQ dan dua slot PIC.
-- ZIP serah terima seluruh data operasional dan dokumen tanpa hash kata sandi/sesi.
+Tidak ada menu urgent, advance, sanksi, nota hilang, inventaris, carry-over, atau serah terima pada alur baru. Aplikasi tidak menggunakan OCR atau integrasi transfer bank. Fitur piutang sponsor, periode akuntansi multi-tahun, reversal mandiri dan PO/penerimaan gudang belum termasuk versi sederhana ini.
 
-Arsitektur, diagram, halaman dan keputusan kebijakan: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Hosting, email dan backup: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+## Peran
 
-## Instalasi lokal
+| Peran di aplikasi | Kode kompatibilitas | Fungsi |
+| --- | --- | --- |
+| Staff | ANGGOTA (HOD lama juga Staff/Koordinator) | Pengajuan sendiri |
+| Financial Operation | FA | Verifikasi, pembayaran, penerimaan kas, baca jurnal |
+| Financial Lead | GM | Persetujuan, anggaran dan CoA |
+| Admin | ADMIN | Akun, anggaran dan CoA; tidak otomatis menyetujui/mencairkan |
 
-Prasyarat Node.js 24, Docker, dan checkout yang ada. Tidak perlu worktree baru.
+Pengusul, verifikator, penyetuju dan pencair wajib berbeda orang. Empat akun dibutuhkan untuk simulasi alur lengkap. Password tersimpan sebagai salted scrypt; sesi HttpOnly dan pemeriksaan hak akses dilakukan di server.
 
-```sh
-npm ci --cache /tmp/fab-npm-cache
+## Menjalankan lokal
+
+Node.js 24 dan PostgreSQL 17 direkomendasikan. Pasang Docker bila memakai database lokal melalui helper.
+
+```bash
 cp .env.example .env.local
-docker run -d --name fab-postgres -e POSTGRES_USER=fab -e POSTGRES_DB=fab \
-  -e POSTGRES_HOST_AUTH_METHOD=trust -p 127.0.0.1:5432:5432 \
-  -v fab-pgdata:/var/lib/postgresql/data postgres:17
-```
-
-Database `trust` hanya untuk pengembangan lokal dengan port loopback. Untuk produksi gunakan paket Compose yang mewajibkan password dan tidak menerbitkan port database.
-
-Isi ADMIN_INITIAL_PASSWORD melalui environment proses secara aman untuk akun pertama, kemudian:
-
-```sh
-npm run setup
+# Isi DATABASE_URL, ADMIN_INITIAL_PASSWORD dan SETUP_SECRET melalui editor lokal.
+npm ci
+node --env-file=.env.local scripts/setup.mjs
 npm run build
 npm start
-# Terminal lain:
-npm run worker
 ```
 
-Admin awal username **FAB**. Kata sandi disimpan sebagai hash dan tidak ditulis ke kode. Setup berulang tidak mengubah password akun yang sudah ada. `/admin` mengharuskan login.
+Helper `./scripts/prepare-local.sh` juga tersedia. Login awal `FAB` dengan nilai `ADMIN_INITIAL_PASSWORD`. Password tidak ditulis di repository.
 
-Untuk menjalankan ulang database yang sudah dibuat: `docker start fab-postgres`.
+1. Admin menambah divisi dan menetapkan anggaran di Keuangan; tidak ada plafon fiktif yang dianggap saldo kas.
+2. Admin menambah akun Staff, dua FO, dan Lead.
+3. FO mencatat dana yang benar-benar masuk melalui Keuangan → Catat penerimaan dana.
+4. Staff mengirim pengajuan beserta nota; FO memverifikasi; Lead menyetujui; FO lain mencairkan.
 
-## Data contoh
+Untuk dummy: Admin → Coba dengan data dummy. Isi password sendiri; sistem membuat `contoh.staff`, `contoh.fo`, `contoh.lead`, `contoh.pencair` dan dua pengajuan PDF. Tidak menambahkan anggaran atau kas fiktif. Data contoh muncul dalam laporan sehingga sebaiknya dicoba di project percobaan.
 
-Tetapkan DEMO_PASSWORD minimal delapan karakter melalui environment proses, lalu `npm run seed`. Script idempotent menambahkan akun `demo.anggota`, `demo.hod`, `demo.fa`, `demo.pencair`, `demo.gm`, `demo.wakil`, RAB/inventaris, serta pengajuan contoh. Semua diberi label **[CONTOH]**. Seed tidak memasukkan uang kas atau melakukan pencairan. Gunakan database demo terpisah dari data operasional.
+## Vercel + Supabase
 
-## Email lokal
+Ikuti [panduan hosting](docs/VERCEL-SUPABASE.md). Tidak memerlukan ZIP. Login memakai database aplikasi, bukan Supabase Auth. Storage harus private; `service_role` hanya di environment server. `.env.local`, data bank dan API key tidak boleh di-commit.
 
-```sh
-docker run -d --name fab-mailpit -p 127.0.0.1:1025:1025 -p 127.0.0.1:8025:8025 axllent/mailpit:v1.27
-```
+## Upgrade dari versi lama
 
-Di `.env.local`, isi SMTP_HOST=127.0.0.1, SMTP_PORT=1025 dan SMTP_REQUIRE_TLS=false untuk Mailpit. Ini pengiriman ke kotak uji lokal, bukan inbox anggota. SMTP produksi harus memakai TLS dan konfigurasi pengirim yang benar. WhatsApp/Line opsional belum diintegrasikan.
+Migrasi aditif dijalankan otomatis saat halaman baru dibuka. Pengajuan dan dokumen lama tidak dihapus: tersedia melalui Arsip versi lama di halaman Pengajuan. Arsip bersifat read-only dan tidak diposting ulang ke jurnal baru. Buku kas lama menjadi saldo pembukaan satu kali; **rekonsiliasikan dengan rekening bank**. Hutang/pengajuan lama yang belum selesai harus ditinjau sebelum membuat pengajuan pengganti agar tidak dibayar dua kali. Anggaran versi baru dimulai dari nol sampai Lead/Admin menetapkannya.
 
-## Pengujian otomatis
+Master divisi dapat menampung 12 divisi atau lebih. Nama dan pembagian Rp1,8 miliar harus diisi tim sendiri; tiga kelompok lama tidak dianggap sebagai daftar final 12 divisi. Anggaran versi sederhana memakai satu periode Gen 8, bukan reset tahunan otomatis.
 
-```sh
+## Pengujian
+
+```bash
 npm test
-npm run test:integration
-# Setelah build; Chromium tersedia pada /usr/bin/chromium atau CHROMIUM_PATH:
-npm run test:e2e
-# Termasuk pengujian email sungguhan ke SMTP lokal dan seed idempotent:
-MAILPIT_TEST_URL=http://127.0.0.1:8025 node --env-file=.env.local tests/run-integration.mjs --browser --seed
+node --env-file=.env.local tests/run-simple.mjs
+npm run build
+node --env-file=.env.local tests/run-simple.mjs --browser
 ```
 
-Runner integrasi membuat database PostgreSQL lokal sementara `fab_test_<acak>` dan direktori dokumen sementara, kemudian membersihkan keduanya. Ia tidak menjalankan skenario finansial uji pada database operasional. Pemeriksaan email ditandai skipped jika Mailpit tidak diminta. Tes browser menguji login, anggota, alur pembelian sampai pencairan, batas akses, Excel/PDF/ZIP dan halaman mobile/desktop. Tes domain mencakup limit bersamaan, duplikasi, splitting, advance, sisa advance, urgent, nota hilang, banding dan audit.
-
-## Deployment
-
-Paket `Dockerfile`, `compose.yaml` dan Caddyfile menyediakan web, worker, PostgreSQL dan HTTPS opsional. Salin `.env.compose.example` menjadi `.env`, isi rahasia, lalu `docker compose up -d --build`. Untuk HTTPS gunakan domain yang diarahkan ke VPS dan profil `https` sesuai dokumentasi deployment.
-
-**Belum ada URL publik:** lingkungan pengembangan ini belum terhubung ke akun hosting/domain. Build dan pengujian lokal tidak membuat deployment publik. Untuk operasional, Admin juga perlu memasukkan RAB, kas, kontak PIC sebenarnya dan akun petugas yang berbeda. Transfer bank tetap dilakukan petugas di bank, lalu dicatat di aplikasi.
-
-## Online tanpa ZIP
-
-Kode dapat dibangun langsung dari GitHub menggunakan blueprint Render (`render.yaml`). Ikuti [docs/RENDER.md](docs/RENDER.md). Akun hosting dan persetujuan biaya tetap diperlukan; menambahkan blueprint tidak menerbitkan URL publik.
-
-## Vercel + Supabase untuk demo gratis
-
-Ikuti [docs/VERCEL-SUPABASE.md](docs/VERCEL-SUPABASE.md). Storage privat Supabase menggantikan disk lokal, halaman `/setup` menyiapkan schema/akun awal dengan secret, dan penjadwal best-effort menggantikan worker tetap. Batas unggah Vercel 3 MB; dokumen/laporan menggunakan signed URL. Tidak menjamin SLA urgent pada paket gratis.
+Runner membuat database sementara lokal dan Storage sementara, lalu menghapus keduanya; tidak menguji atau mengubah Supabase produksi. Browser memerlukan Chromium (`CHROMIUM_PATH` opsional). Detail desain dan keterbatasan ada pada [arsitektur](docs/ARCHITECTURE.md) dan [validasi](docs/VALIDATION.md).

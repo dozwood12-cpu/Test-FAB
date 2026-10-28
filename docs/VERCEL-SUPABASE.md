@@ -1,87 +1,66 @@
-# Online dengan Vercel Hobby dan Supabase Free
+# Hosting gratis: Vercel + Supabase
 
-Konfigurasi ini untuk mencoba aplikasi dalam kuota gratis layanan masing-masing. Tidak menjanjikan kapasitas tanpa batas atau SLA urgent; periksa ketentuan dan kuota terbaru penyedia saat mendaftar. Jangan memakai blueprint Render jika ingin mengikuti jalur ini.
+Gunakan Next.js di Vercel Hobby serta PostgreSQL dan private Storage di Supabase Free. Paket gratis memiliki kuota dan dapat berhenti/pause; bukan jaminan layanan produksi. Tidak perlu membeli domain atau mengunduh ZIP.
 
-## 1. Siapkan GitHub
+## Supabase
 
-Kode berada di branch **main** pada `dozwood12-cpu/Test-FAB`. Branch unduhan ZIP bukan branch yang digunakan panduan deployment ini. Di GitHub Settings, ubah **Default branch** menjadi **main**. Ini juga diperlukan agar penjadwal GitHub Actions berjalan dari kode yang benar. Jangan menghapus branch unduhan atau perubahan milik Anda.
+1. Buat project baru dan simpan **Database Password**. Password ini bukan password login aplikasi.
+2. Connect → **Transaction pooler** (biasanya port 6543). Salin connection string lengkap termasuk username pooler; ganti placeholder password dengan password database yang di-URL-encode.
+3. Storage → buat bucket **fab-documents**, **Public dimatikan**. Bucket harus menerima JPEG, PNG, WebP, PDF serta XLSX untuk laporan; limit objek minimal 40 MB untuk ekspor. Upload nota anggota dibatasi 3 MB di Vercel.
+4. Ambil Project URL dan **legacy service_role key** melalui pengaturan API. Kunci service_role hanya untuk server, bukan anon/publishable key dan jangan diberi awalan NEXT_PUBLIC.
+5. Unduh CA certificate dari pengaturan SSL database bila diperlukan. Isi PEM lengkap digunakan pada DATABASE_SSL_CA. Verifikasi TLS tidak dimatikan.
 
-## 2. Buat project Supabase
+## Vercel
 
-1. Buat **New project** pada organisasi dengan plan Free. Pilih Singapore jika tersedia.
-2. Tentukan dan simpan password database secara aman. Jika menggunakan karakter khusus pada password, password dalam connection string perlu di-URL-encode.
-3. Pada **Connect**, pilih connection string **Transaction pooler** (umumnya port 6543). Salin URL PostgreSQL, lalu ganti placeholder password dengan password database. Gunakan URL ini untuk DATABASE_URL di Vercel. Jangan gunakan anon key sebagai password database dan jangan kirim URL berpassword ke chat.
-4. Cari **Project URL** (format `https://<project-ref>.supabase.co`) pada pengaturan API/Data API. Ini nilai SUPABASE_URL; bukan URL halaman dashboard Supabase.
-5. Pada pengaturan API keys, buka **Legacy API Keys** dan salin key **service_role** untuk SUPABASE_SERVICE_ROLE_KEY. Ini rahasia server, berbeda dari anon/publishable key. Jangan menggunakan awalan NEXT_PUBLIC untuk key ini dan jangan memasukkannya ke kode GitHub.
-6. Buka **Storage → New bucket**, buat bucket bernama **fab-documents**, dan biarkan **Public bucket mati**. Izinkan JPEG, PNG, WebP, PDF, application/zip, dan application/vnd.openxmlformats-officedocument.spreadsheetml.sheet jika mengaktifkan pembatasan MIME. ZIP diperlukan untuk ekspor laporan/serah terima. Batas file bucket minimal 40 MB agar arsip ekspor dapat disimpan; batas unggah anggota tetap 3 MB pada Vercel.
+Import repo Test-FAB, branch **main**, preset **Next.js**, root `./`, Node.js 24. Build `npm run build`; jangan menjalankan setup database saat build. Pastikan domain Production yang dibuka adalah milik deployment terbaru, bukan domain project lama.
 
-File hanya diakses melalui pemeriksaan izin aplikasi dan signed URL berumur pendek. Tidak perlu membuat policy Storage yang mengizinkan semua pengguna membaca/menulis. Akun anggota adalah akun database aplikasi, bukan Supabase Auth.
-
-## 3. Impor ke Vercel
-
-1. Buka **Add New → Project**, hubungkan GitHub dan pilih **Test-FAB**.
-2. Pastikan branch produksi **main** dan Framework **Next.js**. Root directory tetap root repo. Build command `npm run build`; jangan menjalankan database setup di build command. Gunakan Node.js 24.
-3. Pada **Environment Variables**, masukkan nilai berikut untuk Production:
+Environment Variables **Production**:
 
 | Nama | Nilai |
-|---|---|
-| DATABASE_URL | Connection string Transaction pooler Supabase, termasuk password yang diisi dengan aman |
-| STORAGE_DRIVER | `supabase` |
-| SUPABASE_URL | Project URL Supabase |
-| SUPABASE_SERVICE_ROLE_KEY | Legacy service_role key, rahasia server |
-| SUPABASE_STORAGE_BUCKET | `fab-documents` |
-| ADMIN_INITIAL_PASSWORD | Kata sandi awal akun FAB yang Anda pilih |
-| SETUP_SECRET | Kode acak minimal 32 karakter; berbeda dari kata sandi login |
-| COOKIE_SECURE | `true` |
-| CRON_SECRET | Kode acak minimal 32 karakter untuk pengingat otomatis |
+| --- | --- |
+| DATABASE_URL | Connection string Transaction pooler Supabase dengan password database |
+| STORAGE_DRIVER | supabase |
+| SUPABASE_URL | URL HTTPS project Supabase |
+| SUPABASE_SERVICE_ROLE_KEY | Legacy service_role key, disimpan sebagai rahasia server |
+| SUPABASE_STORAGE_BUCKET | fab-documents |
+| ADMIN_INITIAL_PASSWORD | Password awal akun FAB pilihan pemilik |
+| SETUP_SECRET | Kode acak minimal 32 karakter, berbeda dari password login |
+| COOKIE_SECURE | true |
+| CRON_SECRET | Kode acak minimal 32 karakter untuk worker email |
+| DATABASE_SSL_CA | Opsional: seluruh isi PEM CA Supabase termasuk BEGIN/END CERTIFICATE |
+| APP_URL | Opsional: URL HTTPS Production aplikasi |
 
-Buat kode acak menggunakan password manager; jangan pakai nilai contoh publik sebagai secret. Jika ingin Preview deployment, gunakan project Supabase terpisah untuk percobaan, bukan database keuangan operasional.
+Jangan memasukkan password/kunci ke chat atau repository. Setelah mengubah environment variables, **redeploy** agar deployment menggunakan nilai baru.
 
-4. Klik **Deploy** dan tunggu build berhasil. Buka URL HTTPS Production yang benar-benar diberikan Vercel. Jangan memakai deployment preview yang dilindungi login Vercel untuk akses anggota/penjadwal.
+## Mulai menggunakan aplikasi
 
-## 4. Penyiapan pertama
+1. Untuk database baru: buka `/setup`, masukkan SETUP_SECRET, lalu login `FAB` dengan ADMIN_INITIAL_PASSWORD.
+2. Admin membuka **Keuangan** untuk menambah cost center/divisi dan menetapkan anggaran Gen 8. Rp1,8 miliar bukan saldo kas; alokasi 12 divisi diisi sesuai keputusan tim.
+3. Admin membuka **Anggota** untuk membuat Staff, FO verifikator, Financial Lead dan FO pencair. Keempat tugas harus dilakukan orang berbeda. Kode kompatibilitas FA = FO, GM = Lead.
+4. FO mencatat kas yang benar-benar diterima melalui **Keuangan → Catat penerimaan dana**.
+5. Staff mengirim form dan nota sekaligus. FO memverifikasi; Lead Approve/Reject; FO lain mencatat pencairan dengan bukti transfer. Jurnal dibuat otomatis.
 
-1. Buka `/setup` pada URL Production.
-2. Masukkan kode SETUP_SECRET yang Anda simpan di Vercel; bukan service_role key dan bukan password database.
-3. Klik **Siapkan database dan akun FAB**. Schema dibuat melalui koneksi privat; RLS dan pencabutan hak akses anon/authenticated melindungi tabel aplikasi dari akses publik Supabase.
-4. Setelah diarahkan ke login, masuk dengan username **FAB** dan nilai ADMIN_INITIAL_PASSWORD Anda.
-5. Tambahkan akun Anggota, FA verifikator, GM dan FA pencair berbeda untuk mencoba alur lengkap. Isi dua PIC, RAB, inventaris dan kas dengan data yang benar. Untuk demo gunakan akun/data fiktif yang jelas ditandai sebagai contoh.
-6. Penyiapan berulang tidak mereset password atau menghapus data. Setelah sukses, SETUP_SECRET dapat dihapus dari environment Vercel lalu redeploy agar endpoint penyiapan tidak lagi dapat dipakai. Migrasi versi berikutnya perlu pengaturan rahasia kembali atau tooling setup privat.
+Data dummy berada di **Anggota → Coba dengan data dummy**. Password ditentukan Admin. Empat akun `contoh.staff`, `contoh.fo`, `contoh.lead`, `contoh.pencair` dan dua pengajuan PDF dibuat tanpa kas/anggaran fiktif. Data ini tampil dalam laporan; gunakan project percobaan bila perlu pemisahan dari data asli.
 
-Jika mendapat kegagalan verifikasi sertifikat PostgreSQL, ambil CA resmi project dari Supabase dan isi DATABASE_SSL_CA dengan PEM tersebut. TLS tetap diverifikasi; jangan menonaktifkan certificate verification. Jangan menempelkan seluruh log koneksi/connection string berpassword ke chat.
+## Upgrade versi lama
 
-## 5. Pengingat otomatis
+Tidak perlu menghapus database. Migrasi aditif berjalan otomatis ketika halaman utama baru dibuka. Akun/password lama tetap berlaku. Pengajuan dan dokumen lama tersedia sebagai **Arsip versi lama**, read-only; tidak diposting ulang ke GL baru. Saldo buku kas lama menjadi jurnal pembukaan satu kali, bukan bukti bank sudah cocok. Cocokkan saldo dan hutang/advance lama sebelum mulai transaksi asli. Hindari membuat ulang pengajuan lama yang sudah dibayar. Anggaran baru dimulai dari nol sampai ditetapkan Lead/Admin.
 
-`vercel.json` menyediakan cron harian pukul 06.00 WIB sebagai cadangan. Pengingat lebih sering memakai GitHub Actions agar tidak mengandalkan proses worker yang terus hidup:
+Jika migrasi gagal, lihat Vercel Logs. Jangan reset/drop database untuk mengatasi error. Backup database dan Storage sebelum upgrade; uji dahulu pada salinan staging bila memuat data operasional penting.
 
-1. Pastikan default branch GitHub **main**.
-2. Buka GitHub **Settings → Secrets and variables → Actions**.
-3. Tambahkan `FAB_APP_URL` berisi URL HTTPS Production Vercel (tanpa `/login`) dan `FAB_CRON_SECRET` yang nilainya sama persis dengan CRON_SECRET di Vercel.
-4. Buka **Actions → Pengingat Anargya FAB → Run workflow** untuk mencoba. Jika pengujian berhasil, buka tab **Variables** pada pengaturan Actions dan buat repository variable `FAB_REMINDERS_ENABLED` bernilai `true`. Setelah diaktifkan, jadwal meminta eksekusi sekitar setiap 30 menit. Sebelum variable ini diaktifkan, job terjadwal dilewati agar tidak menghabiskan kuota Actions. Jika deployment protection memblokirnya, pastikan URL Production dapat diakses anggota dan penjadwal tanpa login dashboard Vercel. Endpoint cron tetap memerlukan secret.
-5. Admin juga dapat menjalankan antrean dari **Kebijakan → Jalankan pengingat sekarang**.
+## Email opsional
 
-GitHub Actions/Vercel cron gratis bersifat best-effort: eksekusi bisa terlambat, berhenti karena kuota/inaktivitas, atau dibatasi penyedia. Ini **tidak menjamin SLA urgent 2–4 jam**. Gunakan scheduler/worker yang memiliki jaminan operasional sebelum memakai alur urgent untuk transaksi nyata.
+Isi SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, SMTP_FROM; SMTP_REQUIRE_TLS default aktif dan SMTP_SECURE=true untuk port465. Tanpa SMTP aplikasi tetap berfungsi dengan status dan antrean tugas, tetapi email tidak terkirim.
 
-## 6. Email dan dokumen
+`vercel.json` menjalankan `/api/cron` sekali sehari pukul 06.00 WIB. Vercel memakai CRON_SECRET. Worker hanya mengirim email versi sederhana dan membersihkan export kedaluwarsa; eskalasi urgent/sanksi versi lama dihentikan. Pengiriman SMTP belum tentu masuk inbox walau server menerima.
 
-Notifikasi dalam aplikasi aktif tanpa penyedia email. Untuk mengirim ke inbox anggota, tambahkan SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, SMTP_FROM serta konfigurasi TLS yang sesuai penyedia di Vercel. SMTP juga punya kuota/ketentuan tersendiri. Tanpa SMTP, email ditampilkan belum tersedia.
+Workflow GitHub Actions opsional tersedia untuk interval sekitar 30 menit: isi secrets FAB_APP_URL dan FAB_CRON_SECRET serta repository variable FAB_REMINDERS_ENABLED=true. Default branch GitHub harus main. Actions menggunakan kuota dan jadwal bisa tertunda; tidak menjamin SLA. Akses domain aplikasi harus dapat dijangkau tim/worker tanpa Vercel dashboard login, sementara login aplikasi tetap wajib.
 
-Vercel memiliki batas request/response serverless. Karena itu:
+## Diagnosis
 
-- Upload anggota maksimal 3 MB per berkas pada Vercel; 10 MB tetap berlaku untuk instalasi lokal.
-- Dokumen dan laporan cloud diunduh langsung dari Supabase melalui signed URL setelah izin diperiksa aplikasi.
-- Ekspor serah terima besar dibagi menjadi beberapa ZIP, maksimal sekitar 40 MB per bagian; unduh semua bagian saat data tidak sedang diubah.
-- Arsip ekspor sementara dibersihkan oleh penjadwal setelah satu hari. Jika penjadwal belum aktif, objek privat tersebut tetap memakai kuota Storage sampai dibersihkan.
-- Ekspor masih dapat melewati batas waktu fungsi bila jumlah dokumen sangat banyak. Untuk serah terima operasional besar, gunakan backup/database tooling pada server sesuai docs/DEPLOYMENT.md.
-
-## Status yang sudah dan belum diverifikasi
-
-Adaptor Storage diuji dengan respons API tiruan dan database lokal; schema/RLS serta alur aplikasi diuji pada PostgreSQL lokal. Pengujian ini tidak membuktikan bucket, API key, pooler, email atau URL project Supabase/Vercel Anda sudah berfungsi. Validasi layanan nyata dilakukan setelah Anda membuat project dan mengisi variabel secara aman.
-
-### Pemeriksaan database dan percobaan dari browser
-
-Login sebagai Admin lalu buka `/admin/database` (tautan juga tersedia di Beranda dan Menu lainnya). Halaman ini membaca jumlah record, relasi pengusul, pemisahan petugas, dan RLS pada database deployment saat ini. Halaman ini tidak memeriksa rekening bank atau keberadaan setiap objek Storage.
-
-Untuk mencoba alur, isi password baru minimal 8 karakter, centang persetujuan, dan klik **Buat data dummy**. Akun `demo.anggota`, `demo.hod`, `demo.fa`, `demo.pencair`, `demo.gm`, dan `demo.wakil` memakai password tersebut saat pertama dibuat. Pengulangan mempertahankan akun/password dan pengajuan yang sudah ada. Untuk reset gunakan menu Anggota & akses.
-
-Data `[CONTOH]` meliputi RAB tiga divisi, satu inventaris, tiga pengajuan, dan satu nota PDF. Reimbursement sudah diverifikasi sehingga GM dapat mencoba persetujuan; dua advance menunggu FA. Tidak ada kas masuk, persetujuan GM, atau pencairan yang dibuat otomatis. Data contoh berada di database yang sama dan masuk laporan; gunakan project percobaan bila perlu isolasi penuh. Nonaktifkan akun demo setelah percobaan. Log audit dipertahankan.
+- 404 `/setup`: periksa domain, branch main, commit dan deployment Production.
+- 28P01: username/password DATABASE_URL tidak cocok; salin pooler dan encode password dengan benar.
+- SELF_SIGNED_CERT_IN_CHAIN: isi DATABASE_SSL_CA dengan PEM CA resmi Supabase dan redeploy.
+- Anggaran tidak cukup: isi plafon cost center di Keuangan, bukan saldo kas.
+- Saldo kas tidak cukup: FO mencatat penerimaan dana nyata; menambah budget tidak menambah uang.
+- Tidak ada tombol pencairan: akun harus FO dan berbeda dari pengusul/verifikator/Lead.

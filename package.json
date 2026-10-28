@@ -7,8 +7,8 @@
     "build": "next build",
     "start": "next start --hostname 0.0.0.0",
     "test": "node --test tests/*.test.mjs",
-    "test:integration": "node --env-file=.env.local tests/run-integration.mjs",
-    "test:e2e": "node --env-file=.env.local tests/run-integration.mjs --browser",
+    "test:integration": "node --env-file=.env.local tests/run-simple.mjs",
+    "test:e2e": "node --env-file=.env.local tests/run-simple.mjs --browser",
     "worker": "node --env-file=.env.local scripts/worker.mjs",
     "setup": "node --env-file=.env.local scripts/setup.mjs",
     "seed": "node --env-file=.env.local scripts/seed.mjs"

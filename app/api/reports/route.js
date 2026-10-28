@@ -1,42 +1,19 @@
+import ExcelJS from 'exceljs';
+import {currentUser} from '../../../lib/auth.mjs';
+import {finance,log} from '../../../lib/simple/core.mjs';
+import {ensureSimple,pool,tx} from '../../../lib/simple/db.mjs';
 import {storageDriver} from '../../../lib/storage.mjs';
 import {publishExport} from '../../../lib/export-file.mjs';
-import {currentUser} from '../../../lib/auth.mjs';
-import pool from '../../../lib/db.mjs';
-import {transaction,audit} from '../../../lib/workflow.mjs';
-import {money} from '../../../lib/rules.mjs';
-import ExcelJS from 'exceljs';
-import PDFDocument from 'pdfkit';
 export const maxDuration=60;
-export async function GET(request){
- const user=await currentUser();if(!user||!['FA','GM','ADMIN'].includes(user.role))return new Response('Tidak diizinkan',{status:403});
- const url=new URL(request.url),month=url.searchParams.get('month'),format=url.searchParams.get('format');
- if(!/^\d{4}-(0[1-9]|1[0-2])$/.test(month||'')||!['xlsx','pdf'].includes(format))return new Response('Bulan/format tidak valid',{status:400});
- const start=month+'-01';
- const {requests,cash,rab,recon}=await transaction(async c=>{
-  await c.query('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ');
-  return {requests:(await c.query('SELECT r.number,r.title,u.name AS proposer,r.division,r.purchase_date,r.amount,r.route,r.kind,r.status,r.paid_at FROM requests r JOIN users u ON u.id=r.proposer_id WHERE r.purchase_date >= $1::date AND r.purchase_date< $1::date+interval \'1 month\' ORDER BY r.number',[start])).rows,
-  cash:(await c.query("SELECT c.kind,c.amount,c.note,c.created_at,r.number FROM cash_entries c LEFT JOIN requests r ON r.id=c.request_id WHERE c.created_at>=($1::date AT TIME ZONE 'Asia/Jakarta') AND c.created_at<(($1::date+interval '1 month') AT TIME ZONE 'Asia/Jakarta') ORDER BY c.created_at",[start])).rows,
-  rab:(await c.query("SELECT b.code,b.title,b.division,b.budget,COALESCE(sum(i.quantity*i.unit_price) FILTER(WHERE r.status<>'Ditolak'),0) AS requested,COALESCE(sum(i.quantity*i.unit_price) FILTER(WHERE r.status='Dicairkan'),0) AS paid FROM rab_items b LEFT JOIN request_items i ON i.rab_id=b.id LEFT JOIN requests r ON r.id=i.request_id AND r.purchase_date >=$1::date AND r.purchase_date<$1::date+interval '1 month' GROUP BY b.id ORDER BY b.code",[start])).rows,
-  recon:(await c.query('SELECT * FROM reconciliations WHERE month=$1',[start])).rows};
- });
- await transaction(c=>audit(c,user,'REPORT_EXPORTED',null,{month,format,requests:requests.length}));
- let body,mime;
- if(format==='xlsx'){
-  const workbook=new ExcelJS.Workbook();workbook.creator='Anargya FAB';
-  const definitions=[['Pengajuan',requests,['number','title','proposer','division','purchase_date','amount','route','kind','status','paid_at'],['Nomor','Judul','Pengusul','Divisi','Tanggal pembelian','Nominal','Jalur','Jenis','Status','Dicairkan']],['Buku Kas',cash,['created_at','kind','number','amount','note'],['Tanggal','Jenis','Pengajuan','Nominal','Catatan']],['RAB',rab,['code','title','division','budget','requested','paid'],['Kode','Nama','Divisi','Anggaran','Diajukan bulan ini','Dicairkan dari pengajuan bulan ini']],['Rekonsiliasi',recon,['month','statement_balance','ledger_balance','difference','note'],['Bulan','Saldo rekening','Saldo buku','Selisih','Catatan']]];
-  for(const [name,rows,keys,labels] of definitions){const sheet=workbook.addWorksheet(name);sheet.columns=keys.map((key,i)=>({header:labels[i],key,width:i===1?35:23}));for(const row of rows)sheet.addRow(Object.fromEntries(keys.map(k=>[k,['amount','budget','requested','paid','statement_balance','ledger_balance','difference'].includes(k)?Number(row[k]):row[k]])));sheet.getRow(1).font={bold:true};sheet.views=[{state:'frozen',ySplit:1}];}
-  body=Buffer.from(await workbook.xlsx.writeBuffer());mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
- } else {
-  const doc=new PDFDocument({size:'A4',margin:42});const chunks=[];
-  const done=new Promise((resolve,reject)=>{doc.on('data',b=>chunks.push(b));doc.on('end',resolve);doc.on('error',reject);});
-  doc.fontSize(21).text('ANARGYA GEN 8 — FAB');doc.moveDown().fontSize(14).text('Laporan keuangan '+month);doc.fontSize(10).text('Dibuat: '+new Date().toLocaleString('id-ID',{timeZone:'Asia/Jakarta'}));
-  const section=(title,lines)=>{doc.moveDown().fontSize(14).text(title);doc.fontSize(9);if(!lines.length)doc.text('Tidak ada data.');for(const line of lines){if(doc.y>740)doc.addPage();doc.text(line,{lineGap:5});}};
-  section('Pengajuan',requests.map(r=>`${r.number} | ${r.division} | ${money(r.amount)} | ${r.status}\n${r.title} — ${r.proposer}`));
-  section('Buku kas',cash.map(c=>`${c.kind} | ${money(c.amount)} | ${c.number||'Kas tim'} | ${c.note}`));
-  section('RAB dan pengajuan bulan ini',rab.map(r=>`${r.code} ${r.title}\nRAB ${money(r.budget)} | Diajukan ${money(r.requested)} | Dicairkan ${money(r.paid)}`));
-  section('Rekonsiliasi rekening',recon.map(r=>`Rekening ${money(r.statement_balance)} | Buku ${money(r.ledger_balance)} | Selisih ${money(r.difference)}\n${r.note}`));
-  doc.end();await done;body=Buffer.concat(chunks);mime='application/pdf';
- }
- if(storageDriver()==='supabase')return publishExport(user,body,mime,`FAB-${month}.${format}`);
- return new Response(body,{headers:{'Content-Type':mime,'Content-Disposition':`attachment; filename="FAB-${month}.${format}"`,'Cache-Control':'private, no-store'}});
+export async function GET(){
+ const user=await currentUser();if(!user||!finance(user))return new Response('Tidak diizinkan',{status:403});await ensureSimple();
+ const data=await tx(async c=>{await c.query('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ');return {
+ requests:(await c.query('SELECT r.number,r.title,u.name AS pengusul,cc.name AS divisi,r.vendor,r.amount,r.status,r.purchase_date,r.due_date,COALESCE((SELECT sum(amount) FROM simple_payments WHERE request_id=r.id),0) AS dibayar FROM simple_requests r JOIN cost_centers cc ON cc.id=r.cost_center_id JOIN users u ON u.id=r.proposer_id ORDER BY r.id')).rows,
+ journals:(await c.query('SELECT e.id,e.created_at,e.source_key,e.description,l.account_code,a.name,l.debit,l.credit,c.name AS divisi FROM journal_entries e JOIN journal_lines l ON l.entry_id=e.id JOIN gl_accounts a ON a.code=l.account_code LEFT JOIN cost_centers c ON c.id=l.cost_center_id ORDER BY e.id,l.id')).rows,
+ budgets:(await c.query("SELECT c.name,c.budget,COALESCE((SELECT sum(amount) FROM simple_requests WHERE cost_center_id=c.id AND status IN ('Disetujui','Dicairkan')),0) AS terpakai FROM cost_centers c ORDER BY name")).rows,
+ payments:(await c.query('SELECT p.id,r.number,p.amount,p.reference,u.name AS petugas,p.created_at FROM simple_payments p JOIN simple_requests r ON r.id=p.request_id JOIN users u ON u.id=p.actor_id ORDER BY p.id')).rows};});
+ const book=new ExcelJS.Workbook();for(const [name,rows] of Object.entries(data)){const sheet=book.addWorksheet(name);if(!rows.length){sheet.addRow(['Belum ada data']);continue;}sheet.columns=Object.keys(rows[0]).map(key=>({header:key,key,width:25}));for(const row of rows)sheet.addRow(Object.fromEntries(Object.entries(row).map(([key,value])=>[key,typeof value==='string'&&/^\d+$/.test(value)&&!['number','account_code','source_key','reference'].includes(key)?Number(value):value])));sheet.getRow(1).font={bold:true};}
+ const bytes=Buffer.from(await book.xlsx.writeBuffer());await tx(c=>log(c,user,null,'Laporan diunduh'));
+ if(storageDriver()==='supabase')return publishExport(user,bytes,'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','laporan-fab.xlsx');
+ return new Response(bytes,{headers:{'Content-Type':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','Content-Disposition':'attachment; filename="laporan-fab.xlsx"','Cache-Control':'private, no-store'}});
 }

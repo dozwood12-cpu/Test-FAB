@@ -47,23 +47,3 @@ export async function logout() {
  if(token)await transaction(async c=>{const row=(await c.query('DELETE FROM sessions WHERE token_hash=$1 RETURNING user_id',[tokenHash(token)])).rows[0];if(row)await audit(c,{id:row.user_id},'LOGOUT',row.user_id);});
  jar.delete('fab_session'); redirect('/login');
 }
-export async function addMember(form) {
- await checkOrigin();
- const actor = await requireAdmin();
- const data = Object.fromEntries(['name','username','email','password','role','division'].map(k=>[k,String(form.get(k) ?? '').trim()]));
- data.password=String(form.get('password') ?? '');
- const error=validateMember(data);
- if(error) redirect('/admin?error='+encodeURIComponent(error));
- const client=await pool.connect();
- try {
-  await client.query('BEGIN');
-  const result=await client.query('INSERT INTO users(name,username,email,password_hash,role,division) VALUES($1,$2,$3,$4,$5,$6) RETURNING id',[data.name,data.username,data.email,hashPassword(data.password),data.role,data.division]);
-  await client.query('INSERT INTO audit_events(actor_id,action,target_id) VALUES($1,$2,$3)',[actor.id,'MEMBER_CREATED',result.rows[0].id]);
-  await client.query('COMMIT');
- } catch(e) {
-  await client.query('ROLLBACK');
-  if(e.code==='23505') redirect('/admin?error='+encodeURIComponent('Username atau email sudah digunakan.'));
-  throw e;
- } finally { client.release(); }
- revalidatePath('/admin'); redirect('/admin?success=1');
-}

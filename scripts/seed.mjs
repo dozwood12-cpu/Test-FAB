@@ -1,3 +1,3 @@
-import pool from '../lib/db.mjs';
-import {seedDemo} from '../lib/demo.mjs';
-try{await seedDemo(process.env.DEMO_PASSWORD);console.log('Data contoh siap; tanpa kas atau pencairan nyata. Password akun lama tidak diubah.');}finally{await pool.end();}
+import {ensureSimple,pool} from '../lib/simple/db.mjs';
+import {createDemo} from '../lib/simple/demo.mjs';
+try{await ensureSimple();const actor=(await pool.query("SELECT * FROM users WHERE username='FAB' AND role='ADMIN' AND active")).rows[0];if(!actor)throw new Error('Akun Admin FAB tidak tersedia.');await createDemo(actor,process.env.DEMO_PASSWORD||'');console.log('Empat akun dan dua pengajuan contoh siap; tidak menambah kas.');}finally{await pool.end();}
