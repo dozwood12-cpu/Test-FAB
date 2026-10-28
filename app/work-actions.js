@@ -15,12 +15,12 @@ async function perform(path,fn) {
  try{result=await fn(user);}catch(e){redirect(path+'?error='+encodeURIComponent(errorMessage(e)));}
  revalidatePath('/', 'layout');redirect(typeof result==='string'?result:path+'?success=1');
 }
-export async function submitRequest(form) {await perform('/requests/new',async user=>{
+export async function submitRequest(form) {await perform(text(form,'edit_id')?`/requests/${text(form,'edit_id')}/edit`:'/requests/new',async user=>{
  const data=Object.fromEntries(['title','vendor','purpose','purchase_date','kind','channel','tracking_number','bank_details','note'].map(k=>[k,text(form,k)]));
  data.urgent=!!form.get('urgent');data.items=[];
  const rab=form.getAll('rab_id'),components=form.getAll('component'),quantities=form.getAll('quantity'),prices=form.getAll('unit_price');
  for(let i=0;i<rab.length;i++)if(components[i])data.items.push({rab_id:rab[i],component:String(components[i]),quantity:Number(quantities[i]),unit_price:Number(prices[i])});
- const r=await createRequest(user,data);return `/requests/${r.id}`;
+ const r=await createRequest(user,data,{editId:text(form,'edit_id')||undefined});return `/requests/${r.id}`;
 });}
 export async function upload(form) {const id=text(form,'id');await perform(`/requests/${id}`,u=>uploadDocument(u,id,form));}
 export async function review(form) {const id=text(form,'id');await perform(`/requests/${id}`,u=>verifyRequest(u,id,text(form,'decision'),text(form,'note'),Object.fromEntries(['rab','amount','readability','duplicates','inventory','completeness'].map(k=>[k,!!form.get(k)]))));}
@@ -60,6 +60,8 @@ export async function memberAction(form) {await perform('/admin',async u=>{
   const target=(await c.query('SELECT * FROM users WHERE id=$1 FOR UPDATE',[id])).rows[0];if(!target)throw new Error('Anggota tidak ditemukan.');
   const action=text(form,'action');
   if(action==='toggle')await c.query('UPDATE users SET active=NOT active WHERE id=$1',[id]);
+  else if(action==='remove'){await c.query('UPDATE users SET active=false WHERE id=$1',[id]);}
+  else if(action==='profile'){const name=text(form,'name'),role=text(form,'role'),division=text(form,'division');if(!name||!['ANGGOTA','HOD','FA','GM','ADMIN'].includes(role)||!['Mechanical','Electrical','Non-Technical'].includes(division))throw new Error('Nama, peran, atau divisi tidak valid.');await c.query("UPDATE users SET name=$2,role=$3,division=$4,deputy=CASE WHEN $3='GM' THEN deputy ELSE false END WHERE id=$1",[id,name,role,division]);}
   else if(action==='deputy'){if(target.role!=='GM')throw new Error('Wakil harus memiliki peran GM.');await c.query('UPDATE users SET deputy=NOT deputy WHERE id=$1',[id]);}
   else if(action==='password'){const pass=String(form.get('password')||'');if(pass.length<8||pass.length>128)throw new Error('Kata sandi harus 8–128 karakter.');await c.query('UPDATE users SET password_hash=$2 WHERE id=$1',[id,hashPassword(pass)]);}
   else throw new Error('Aksi akun tidak valid.');
@@ -88,4 +90,17 @@ export async function createDemo(form){await perform('/admin/database',async use
  const {seedDemo}=await import('../lib/demo.mjs');
  await seedDemo(String(form.get('password')||''));
  await transaction(c=>audit(c,user,'DEMO_DATA_CREATED',null,{prefix:'[CONTOH]'}));
+});}
+export async function editCatalog(form){await perform('/catalog',async user=>{
+ if(!['ADMIN','FA','HOD'].includes(user.role))throw new Error('Tidak memiliki kewenangan.');
+ const type=text(form,'type'),id=text(form,'id');if(!['rab','inventory'].includes(type))throw new Error('Jenis katalog tidak valid.');
+ await transaction(async c=>{
+ const table=type==='rab'?'rab_items':'inventory';
+ const row=(await c.query(`SELECT * FROM ${table} WHERE id=$1 FOR UPDATE`,[id])).rows[0];
+ if(!row||(user.role==='HOD'&&row.division!==user.division))throw new Error('Item tidak ditemukan atau di luar divisi Anda.');
+ const title=text(form,'title');if(!title||title.length>200)throw new Error('Nama wajib diisi maksimal 200 karakter.');
+ if(type==='rab')await c.query('UPDATE rab_items SET title=$2,budget=$3,active=$4 WHERE id=$1',[id,title,positiveInteger(form.get('budget')),!!form.get('active')]);
+ else{const quantity=Number(form.get('quantity')),location=text(form,'location');if(!Number.isSafeInteger(quantity)||quantity<0||!location)throw new Error('Stok harus nol atau lebih dan lokasi wajib diisi.');await c.query('UPDATE inventory SET name=$2,quantity=$3,location=$4,condition=$5 WHERE id=$1',[id,title,quantity,location,text(form,'condition')]);}
+ await audit(c,user,'CATALOG_UPDATED',id,{type,before:row});
+ });
 });}

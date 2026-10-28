@@ -21,6 +21,7 @@ test('admin login, persistent member creation, member access boundary and logout
  await page.getByRole('button',{name:'Tambahkan anggota'}).click();
  await expect(page.getByRole('status')).toContainText('berhasil');
  await expect(page.getByRole('cell').filter({hasText:username}).first()).toBeVisible();
+ const memberRow=page.getByRole('row').filter({hasText:username});await memberRow.getByText('Edit / hapus akses',{exact:true}).click();await memberRow.getByLabel('Nama anggota',{exact:true}).fill('Anggota Revisi');await memberRow.getByRole('button',{name:'Simpan profil',exact:true}).click();await expect(page.getByRole('status')).toContainText('berhasil');expect((await db.query('SELECT name FROM users WHERE username=$1',[username])).rows[0].name).toBe('Anggota Revisi');
  const result=await db.query('SELECT id,password_hash FROM users WHERE username=$1',[username]);
  expect(result.rowCount).toBe(1); expect(result.rows[0].password_hash).not.toBe('Tes-anggota123');
  await page.getByRole('button',{name:'Keluar'}).click();
@@ -35,6 +36,8 @@ test('admin login, persistent member creation, member access boundary and logout
  await expect(page).toHaveURL(/\/login/);
  await expect(page.getByRole('heading',{name:'Selamat datang kembali'})).toBeVisible();
  await page.goto('/admin'); await expect(page).toHaveURL(/\/login/);
+ await page.getByLabel('Username',{exact:true}).fill('FAB');await page.getByLabel('Kata sandi',{exact:true}).fill(process.env.TEST_ADMIN_PASSWORD);await page.getByRole('button',{name:'Masuk ke ruang kerja'}).click();
+ const removeRow=page.getByRole('row').filter({hasText:username});await removeRow.getByText('Edit / hapus akses',{exact:true}).click();await removeRow.getByText('Hapus akses anggota',{exact:true}).click();await removeRow.getByRole('button',{name:'Hapus akses anggota ini',exact:true}).click();await expect(page.getByRole('status')).toContainText('berhasil');expect((await db.query('SELECT active FROM users WHERE username=$1',[username])).rows[0].active).toBe(false);
  } finally {
  await db.query('DELETE FROM sessions WHERE user_id IN (SELECT id FROM users WHERE username=$1)',[username]);
  // Audit retained; detach target is unnecessary because audit target_id is an historical identifier.

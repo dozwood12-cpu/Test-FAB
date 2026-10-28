@@ -25,6 +25,16 @@ async function fileForm(category,amount=10000,date=todayWIB()){
  const f=new FormData();f.set('file',new File([png],'bukti.png',{type:'image/png'}));f.set('category',category);f.set('receipt_date',date);f.set('receipt_amount',String(amount));f.set('stamped','on');f.set('legible','on');return f;
 }
 async function verified(extra={}){const r=await createRequest(people.member,data(extra));if(r.kind!=='ADVANCE')await uploadDocument(people.member,r.id,await fileForm('NOTA',r.amount));await verifyRequest(people.fa,r.id,'verify','Dokumen sesuai',checklist);return r;}
+test('request editing preserves number, excludes itself from splitting and rejects other actors and verified state',async()=>{
+ const input=data({vendor:'Toko edit unik',purpose:'Uji perubahan aman',items:[{rab_id:rab,component:'Bearing edit',quantity:1,unit_price:500000}]});
+ const r=await createRequest(people.member,input);
+ await assert.rejects(()=>createRequest(people.member2,input,{editId:r.id}),/akses|pengusul/);
+ const changed=await createRequest(people.member,{...input,title:'Sudah diedit'},{editId:r.id});
+ assert.equal(changed.number,r.number);assert.equal(changed.route,'REGULER');assert.equal(changed.title,'Sudah diedit');
+ assert.equal((await pool.query('SELECT count(*) AS n FROM request_items WHERE request_id=$1',[r.id])).rows[0].n,'1');
+ await uploadDocument(people.member,r.id,await fileForm('NOTA',500000));await verifyRequest(people.fa,r.id,'verify','Dokumen sesuai',checklist);
+ await assert.rejects(()=>createRequest(people.member,input,{editId:r.id}),/sebelum verifikasi/);
+});
 test('minimum, purchase deadline, permissions and incomplete receipts are enforced',async()=>{
  await assert.rejects(()=>createRequest(people.member,data({items:[{rab_id:rab,component:'Bearing',quantity:1,unit_price:9999}]})),/Minimum/);
  await assert.rejects(()=>createRequest(people.member,data({purchase_date:'2020-01-01'})),/satu bulan/);
